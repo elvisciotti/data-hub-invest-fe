@@ -1,0 +1,23 @@
+{% extends "layouts/ukti.html" %}
+
+{% block main %}
+
+{% import "macros/trade.html" as trade %}
+
+<h1 class="heading-xlarge">Create an investment project</h1>
+
+<h2 class="heading-medium">Client summary</h2>
+
+{{ trade.keyvaluetable(
+investmentDisplay,
+stripey=true,
+labels=investmentDetailLabels,
+keyorder=investmentDetailsDisplayOrder,
+id="investment-details")
+}}
+
+{{ trade.textbox("foreign_co", "Source of foreign investment", value='', "Search for the company name") }}
+
+
+
+{% endblock %}}

@@ -23,7 +23,7 @@
   {% elseif company.investmentProjects.length == 0 %}
     <h2 class="heading-medium">Investment projects</h2>
     <p>This company does not have any investment projects</p>
-    <a href="#" class="button button-secondary">Create investment project</a>
+    <a href="/investment/{{company.id}}" class="button button-secondary">Create investment project</a>
   {% else %}
     <div class="section">
       <div class="split-header">
@@ -31,7 +31,7 @@
           <h3 class="heading-medium">Investment projects</h3>
         </div>
         <div class="cell">
-          <a href="#" class="button button-secondary">Create investment project</a>
+          <a href="/investment/{{company.id}}" class="button button-secondary">Create investment project</a>
         </div>
       </div>
       {{ trade.datatable(investmentProjectsOpen, headings=investmentProjectsOpenLabels, columnorder=investmentProjectsOpenKeys, class="investment-project-summary-table") }}
