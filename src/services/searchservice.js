@@ -41,6 +41,32 @@ function search ({ token, term, limit = 10, page = 1, filters, nonuk = false}) {
     })
 }
 
+function searchCH (token, term) {
+  const options = {
+    url: `${config.apiRoot}/ch?term=${term}`,
+    method: 'GET'
+  }
+
+  return authorisedRequest(token, options)
+    .then(result => {
+      result.term = term
+      return result
+    })
+}
+
+function searchLimited (token, term) {
+  const options = {
+    url: `${config.apiRoot}/limited?term=${term}`,
+    method: 'GET'
+  }
+
+  return authorisedRequest(token, options)
+    .then(result => {
+      result.term = term
+      return result
+    })
+}
+
 function suggestCompany (token, term, types) {
   if (!types) {
     types = ['company_company']
@@ -73,3 +99,4 @@ function suggestCompany (token, term, types) {
 
 module.exports = { search, suggestCompany }
 
+module.exports = { search, suggestCompany, searchCH, searchLimited }
