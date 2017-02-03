@@ -1,8 +1,10 @@
+/* eslint camelcase: 0 */
 const config = require('../config')
 const authorisedRequest = require('../lib/authorisedrequest')
 const interactionRepository = require('./interactionrepository')
 const contactRepository = require('./contactrepository')
 const metadataRepository = require('./metadatarepository')
+const controllerUtils = require('../lib/controllerutils')
 
 const relatedProperties = {
   'sector': 'SECTOR_OPTIONS',
@@ -11,7 +13,7 @@ const relatedProperties = {
   'employee_range': 'EMPLOYEE_OPTIONS',
   'business_type': 'TYPES_OF_BUSINESS',
   'registered_address_country': 'COUNTRYS',
-  'trading_address_countrt': 'COUNTRYS'
+  'trading_address_country': 'COUNTRYS'
 }
 
 // Get a company and then go back and get further detail for each company contact
@@ -46,6 +48,10 @@ function getDitCompany (token, id) {
     result.contacts = contacts
     return result
   })
+}
+
+function getDitCompanyLite (token, id) {
+  return authorisedRequest(token, `${config.apiRoot}/company/${id}/`)
 }
 
 function getCHCompany (token, id) {
@@ -113,7 +119,10 @@ function addRelatedData (company) {
       }
     }
 
-    authorisedRequest(null, `${config.apiRoot}/company/${company.id}/contacts/`)
+    getParentsAndChildren(company)
+      .then(() => {
+        return authorisedRequest(null, `${config.apiRoot}/company/${company.id}/contacts/`)
+      })
       .then((contacts) => {
         company.contacts = contacts
 
@@ -125,13 +134,32 @@ function addRelatedData (company) {
       })
       .then((accountManager) => {
         company.account_manager = accountManager
-        return authorisedRequest(null, `${config.apiRoot}/company/${company.id}/investmentprojects/`)
-      })
-      .then((investmentProjects) => {
-        company.investmentProjects = investmentProjects
         resolve(company)
       })
   })
+}
+
+function getParentsAndChildren (company) {
+  const promises = []
+  company.parents = []
+  company.children = []
+
+  return authorisedRequest(null, `${config.apiRoot}/company/${company.id}/related/`)
+    .then((related) => {
+      for (const id of related.parents) {
+        promises.push(authorisedRequest(null, `${config.apiRoot}/company/${id}/`)
+          .then((parentCompany) => {
+            return company.parents.push(parentCompany)
+          }))
+      }
+      for (const id of related.children) {
+        promises.push(authorisedRequest(null, `${config.apiRoot}/company/${id}/`)
+          .then((childCompany) => {
+            return company.children.push(childCompany)
+          }))
+      }
+      return Promise.all(promises)
+    })
 }
 
 function setCHDefaults (token, company) {
@@ -169,6 +197,10 @@ function saveCompany (token, company) {
     let method
     let url
 
+    const companyToSave = Object.assign({}, parsedCompany)
+    controllerUtils.flattenIdFields(companyToSave)
+    controllerUtils.nullEmptyFields(companyToSave)
+
     if (parsedCompany.id && parsedCompany.id.length > 0) {
       method = 'PUT'
       url = `${config.apiRoot}/company/${parsedCompany.id}/`
@@ -198,10 +230,6 @@ function saveCompany (token, company) {
     })
   }
 
-  delete company.companies_house_data
-  delete company.contacts
-  delete company.interactions
-
   if (company.id && company.id.length > 0) {
     return saveParsedCompany(company)
   }
@@ -223,4 +251,66 @@ function unarchiveCompany (token, companyId) {
   return authorisedRequest(token, `${config.apiRoot}/company/${companyId}/unarchive/`)
 }
 
-module.exports = { getCompany, saveCompany, getDitCompany, getCHCompany, archiveCompany, unarchiveCompany }
+function getCompanyInvestmentSummaryLite (token, companyId) {
+  return authorisedRequest(token, `${config.apiRoot}/company/${companyId}/investmentsummary/`)
+}
+
+function getCompanyInvestmentSummary (token, companyId) {
+  let result
+  return authorisedRequest(token, `${config.apiRoot}/company/${companyId}/investmentsummary/`)
+  .then((summary) => {
+    result = summary
+    let promises = []
+    if (result.investment_account_manager) {
+      promises.push(authorisedRequest(null, `${config.apiRoot}/metadata/advisor/${result.client_relationship_manager}/`)
+      .then((advisor) => {
+        result.investment_account_manager = advisor
+        return
+      }))
+    }
+    if (result.client_relationship_manager) {
+      promises.push(authorisedRequest(null, `${config.apiRoot}/metadata/advisor/${result.client_relationship_manager}/`)
+      .then((advisor) => {
+        result.client_relationship_manager = advisor
+        return
+      }))
+    }
+
+    if (promises.length === 0) {
+      return result
+    }
+
+    return Promise.all(promises)
+  })
+  .then(() => {
+    return result
+  })
+}
+
+function getCompanyInvestmentProjects (token, companyId) {
+  return authorisedRequest(token, `${config.apiRoot}/company/${companyId}/investmentprojects/`)
+}
+
+function saveCompanyInvestmentSummary (token, summary) {
+  const method = 'POST'
+  const data = Object.assign({}, summary)
+  controllerUtils.flattenIdFields(data)
+  controllerUtils.nullEmptyFields(data)
+  const url = `${config.apiRoot}/company/${data.id}/investmentsummary/`
+
+  return authorisedRequest(token, { url, method, body: data })
+}
+
+module.exports = {
+  getCompany,
+  saveCompany,
+  getDitCompany,
+  getDitCompanyLite,
+  getCHCompany,
+  archiveCompany,
+  unarchiveCompany,
+  getCompanyInvestmentSummary,
+  getCompanyInvestmentSummaryLite,
+  saveCompanyInvestmentSummary,
+  getCompanyInvestmentProjects
+}

@@ -1,98 +1,41 @@
 /* eslint new-cap: 0 */
 const express = require('express')
-const winston = require('winston')
 const controllerUtils = require('../lib/controllerutils')
 const companyRepository = require('../repositorys/companyrepository')
-const itemCollectionService = require('../services/itemcollectionservice')
-const getFormattedAddress = require('../lib/address').getFormattedAddress
-const DateLib = require('../lib/date')
-
-const router = express.Router()
-const companyDetailLabels = {
-  registered_address: 'Registered address',
-  business_type: 'Company type',
-  alias: 'Trading name',
-  trading_address: 'Trading address',
-  uk_region: 'Region',
-  headquarters: 'Headquarters',
-  sector: 'Primary sector',
-  website: 'Website',
-  description: 'Business description',
-  employee_range: 'Number of employees',
-  turnover_range: 'Annual turnover'
-}
-const chDetailLabels = {
-  company_number: 'Companies House number',
-  registered_address: 'Registered office address',
-  business_type: 'Company type',
-  company_status: 'Company status',
-  sic_code: 'Nature of business (SIC)'
-}
-
-const companyDetailsDisplayOrder = Object.keys(companyDetailLabels)
-const chDetailsDisplayOrder = Object.keys(chDetailLabels)
-
-const investmentDetailLabels = {
-  account_management_tier: 'Account management tier',
-  account_manager: 'Account manager',
+const metadataRepository = require('../repositorys/metadatarepository')
+const companyFormattingService = require('../services/companyformattingservice')
+const investmentFormattingService = require('../services/investmentformattingservice')
+const { companyDetailLabels, chDetailLabels, companyTableHeadings } = require('../labels/companylabels')
+const { investmentDetailLabels, investmentProjectsOpenLabels, investmentProjectsClosedLabels } = require('../labels/investmentlabels')
+const investmentTierOptions = [
+  'A - Ministerial account',
+  'A1 - Tomorrows champions',
+  'A2 - Intermediaries',
+  'B - Top 300',
+  'C - IST managed',
+  'C - IST managed - Partner lead',
+  'D - LEP managed',
+  'D - Post managed'
+]
+const managedOptions = [
+  'C - IST managed',
+  'C - IST managed - Partner lead',
+  'D - LEP managed',
+  'D - Post managed'
+]
+const investmentFormLabels = {
+  investment_tier: 'Investment account manager tier',
+  investment_account_manager: 'Investment account manager',
+  client_relationship_manager: 'Client relationsip manager',
   ownership: 'Ownership'
 }
-const investmentDetailsDisplayOrder = Object.keys(investmentDetailLabels)
-const investmentProjectsOpenLabels = {
-  name: 'Open projects',
-  value: 'Value',
-  state: 'Stage',
-  land_date: 'Land date'
-}
-const investmentProjectsOpenKeys = Object.keys(investmentProjectsOpenLabels)
-const investmentProjectsClosedLabels = {
-  name: 'Closed projects',
-  value: 'Value',
-  state: 'Status',
-  state_date: 'Status date'
-}
-const investmentProjectsClosedKeys = Object.keys(investmentProjectsClosedLabels)
 
-const TODO = '<span class="status-badge status-badge--xsmall status-badge--action">TO DO</span>'
-
-const fakeParents = [{
-  id: '1234',
-  name: 'Marriott International (USA) HQ - Global HQ',
-  address: 'Bethesda, United States of America'
-}]
-const fakeChildren = [
-  {
-    id: '1234',
-    name: 'Marriott Hanbury Manor Hotel & Country Club',
-    address: 'Hanbury, UK'
-  },
-  {
-    id: '1234',
-    name: 'Marriott Hotel (Twickenham)',
-    address: 'Twickenham, UK'
-  },
-  {
-    id: '1234',
-    name: 'Marriott Hotel and Country Club St Pierre',
-    address: 'Chepstow, UK'
-  },
-  {
-    id: '1234',
-    name: 'Marriott International Aberdeen',
-    address: 'Aberdeen, UK'
-  },
-  {
-    id: '1234',
-    name: 'Marriott Manchester Victoria & Albert Hotel',
-    address: 'Manchester, UK'
-  }
-]
-
-const companyTableHeadings = {
-  name: 'Company name',
-  address: 'Address'
+function isBlank (thing) {
+  const answer = (!thing || thing.length === 0)
+  return answer
 }
-const companyTableKeys = ['name', 'address']
+
+const router = express.Router()
 
 function cleanErrors (errors) {
   if (errors.registered_address_1 || errors.registered_address_2 ||
@@ -119,201 +62,52 @@ function cleanErrors (errors) {
     delete errors.trading_address_country
   }
 }
-function getDisplayCH (company) {
-  if (!company.companies_house_data) return null
 
-  const companyHouseData = company.companies_house_data
+function getCommon (req, res, next) {
+  const id = req.params.sourceId
+  const source = req.params.source
+  const csrfToken = controllerUtils.genCSRF(req, res)
+  return companyRepository.getCompany(req.session.token, id, source)
+  .then((company) => {
+    const headingAddress = companyFormattingService.getHeadingAddress(company)
+    const headingName = companyFormattingService.getHeadingName(company)
+    const countries = metadataRepository.COUNTRYS
 
-  const displayCH = {
-    company_number: companyHouseData.company_number,
-    business_type: companyHouseData.company_category,
-    company_status: companyHouseData.company_status,
-    registered_address: getFormattedAddress(company.companies_house_data, 'registered')
-  }
+    res.locals.id = id
+    res.locals.source = source
+    res.locals.company = company
+    res.locals.countries = countries
+    res.locals.headingName = headingName
+    res.locals.headingAddress = headingAddress
+    res.locals.csrfToken = csrfToken
 
-  displayCH.sic_code = []
-  if (companyHouseData.sic_code_1 && companyHouseData.sic_code_1.length > 0) displayCH.sic_code.push(companyHouseData.sic_code_1)
-  if (companyHouseData.sic_code_2 && companyHouseData.sic_code_1.length > 0) displayCH.sic_code.push(companyHouseData.sic_code_2)
-  if (companyHouseData.sic_code_3 && companyHouseData.sic_code_1.length > 0) displayCH.sic_code.push(companyHouseData.sic_code_3)
-  if (companyHouseData.sic_code_4 && companyHouseData.sic_code_1.length > 0) displayCH.sic_code.push(companyHouseData.sic_code_4)
-
-  return displayCH
-}
-function getDisplayCompany (company) {
-  if (!company.id) return null
-
-  const displayCompany = {
-    sector: (company.sector && company.sector.name) ? company.sector.name : TODO,
-    description: company.description || TODO,
-    website: company.website ? `<a href="${company.website}">${company.website}</a>` : TODO,
-    employee_range: (company.employee_range && company.employee_range.name) ? company.employee_range.name : TODO,
-    turnover_range: (company.turnover_range && company.turnover_range.name) ? company.turnover_range.name : TODO,
-    account_manager: (company.account_manager && company.account_manager.name) ? company.account_manager.name : TODO,
-    headquarters: 'UK headquarters'
-  }
-
-  if (company.alias && company.alias.length > 0) displayCompany.alias = company.alias
-
-  const tradingAddress = getFormattedAddress(company, 'trading')
-  if (tradingAddress.length > 0) displayCompany.trading_address = tradingAddress
-
-  if (!company.companies_house_data) {
-    displayCompany.registered_address = getFormattedAddress(company, 'registered')
-    displayCompany.business_type = (company.business_type && company.business_type.name) ? company.business_type.name : TODO
-  }
-
-  if (company.uk_region) displayCompany.uk_region = company.uk_region.name
-
-  if (company.export_to_countries && company.export_to_countries.length > 0) {
-    displayCompany.export_to_countries = company.export_to_countries.map(country => country.name).toString()
-  } else {
-    displayCompany.export_to_countries = 'No'
-  }
-  if (company.future_interest_countries && company.future_interest_countries.length > 0) {
-    displayCompany.future_interest_countries = company.future_interest_countries.map(country => country.name).toString()
-  } else {
-    displayCompany.future_interest_countries = 'No'
-  }
-
-  return displayCompany
-}
-function getHeadingAddress (company) {
-  // If this is a CDMS
-  const cdmsTradingAddress = getFormattedAddress(company, 'trading')
-  if (cdmsTradingAddress.length > 0) {
-    return cdmsTradingAddress
-  }
-
-  if (company.companies_house_data !== null) {
-    return getFormattedAddress(company.companies_house_data, 'registered')
-  }
-
-  return getFormattedAddress(company, 'registered')
-}
-function getHeadingName (company) {
-  if (company.id) {
-    if (company.alias && company.alias.length > 0) {
-      return company.alias
-    }
-    return company.name
-  } else {
-    return company.companies_house_data.name
-  }
-}
-function parseRelatedData (companies) {
-  return companies.map((company) => {
-    return {
-      name: `<a href="/company/%{company.id}">${company.name}</a>`,
-      address: company.address
-    }
+    next()
   })
 }
-function getInvestmentDetailsDisplay (company) {
-  if (!company.id) return null
-  return {
-    account_management_tier: 'B - Top 300',
-    account_manager: `<a href="/advisor/${company.account_manager.id}/">${company.account_manager.name}</a>`,
-    ownership: 'United States of America'
-  }
-}
-function getOpenInvestmentProjects (investmentProjects) {
-  if (!investmentProjects) return null
 
-  return investmentProjects
-    .filter(project => project.open)
-    .map((project) => {
-      return {
-        name: `<a href="/investmentprojects/${project.id}/">${project.name}</a>`,
-        value: project.value,
-        state: project.state,
-        land_date: DateLib.formatDate(project.land_date)
-      }
-    })
-}
-function getClosedInvestmentProjects (investmentProjects) {
-  if (!investmentProjects) return null
+function getDetails (req, res, next) {
+  const company = res.locals.company
+  const companyDisplay = companyFormattingService.getDisplayCompany(company)
+  const chDisplay = companyFormattingService.getDisplayCH(company)
+  const parents = companyFormattingService.parseRelatedData(company.parents)
+  const children = companyFormattingService.parseRelatedData(company.children)
 
-  return investmentProjects
-    .filter(project => !project.open)
-    .map((project) => {
-      return {
-        name: `<a href="/investmentprojects/${project.id}/">${project.name}</a>`,
-        value: project.value,
-        state: project.state,
-        state_date: DateLib.formatDate(project.state_date)
-      }
-    })
+  res.render('company/details', {
+    tab: 'details',
+    companyDisplay,
+    chDisplay,
+    companyDetailLabels,
+    companyDetailsDisplayOrder: Object.keys(companyDetailLabels),
+    chDetailLabels,
+    chDetailsDisplayOrder: Object.keys(chDetailLabels),
+    companyTableHeadings,
+    companyTableKeys: Object.keys(companyTableHeadings),
+    children,
+    parents
+  })
 }
 
-function index (req, res, next) {
-  const id = req.params.sourceId
-  const source = req.params.source
-
-  companyRepository.getCompany(req.session.token, id, source)
-    .then((company) => {
-      const timeSinceNewContact = itemCollectionService.getTimeSinceLastAddedItem(company.contacts)
-      const contactsInLastYear = itemCollectionService.getItemsAddedInLastYear(company.contacts)
-      const companyDisplay = getDisplayCompany(company)
-      const chDisplay = getDisplayCH(company)
-      const headingAddress = getHeadingAddress(company)
-      const headingName = getHeadingName(company)
-      const parents = parseRelatedData(fakeParents)
-      const children = parseRelatedData(fakeChildren)
-      const investmentDisplay = getInvestmentDetailsDisplay(company)
-      const investmentProjectsOpen = getOpenInvestmentProjects(company.investmentProjects)
-      const investmentProjectsClosed = getClosedInvestmentProjects(company.investmentProjects)
-
-      res.render('company/index', {
-        company,
-        companyDisplay,
-        chDisplay,
-        timeSinceNewContact,
-        contactsInLastYear,
-        companyDetailLabels,
-        companyDetailsDisplayOrder,
-        chDetailLabels,
-        chDetailsDisplayOrder,
-        headingAddress,
-        headingName,
-        companyTableHeadings,
-        companyTableKeys,
-        children,
-        parents,
-        investmentDetailLabels,
-        investmentDetailsDisplayOrder,
-        investmentDisplay,
-        investmentProjectsOpenLabels,
-        investmentProjectsOpenKeys,
-        investmentProjectsOpen,
-        investmentProjectsClosedLabels,
-        investmentProjectsClosedKeys,
-        investmentProjectsClosed
-      })
-    })
-    .catch((error) => {
-      const errors = error.error
-      if (error.response) {
-        return res.status(error.response.statusCode).json({errors})
-      }
-      next(error)
-    })
-}
-
-function get (req, res) {
-  const id = req.params.sourceId
-  const source = req.params.source
-
-  companyRepository.getCompany(req.session.token, id, source)
-    .then((company) => {
-      res.json(company)
-    })
-    .catch((error) => {
-      const errors = error.error
-      return res.status(error.response.statusCode).json({ errors })
-    })
-}
-
-function post (req, res) {
+function postDetails (req, res) {
   // Flatten selected fields
   const company = Object.assign({}, req.body.company)
   controllerUtils.flattenIdFields(company)
@@ -334,46 +128,131 @@ function post (req, res) {
     })
 }
 
-function archive (req, res) {
-  controllerUtils.genCSRF(req, res)
+function getContacts (req, res) {
+  res.render('company/contacts', {tab: 'contacts'})
+}
 
-  companyRepository.archiveCompany(req.session.token, req.body.id, req.body.reason)
-    .then((company) => {
-      res.json(company)
+function getInteractions (req, res) {
+  res.render('company/interactions', {tab: 'interactions'})
+}
+
+function getExport (req, res) {
+  res.render('company/export', {tab: 'export'})
+}
+
+function getInvestment (req, res, next) {
+  companyRepository.getCompanyInvestmentSummary(req.session.token, req.params.sourceId)
+  .then((investmentSummary) => {
+    if (!investmentSummary) {
+      req.flash('info', 'Before creating a new investment project, please complete this section.')
+      return res.redirect(`/company/company_company/${req.params.sourceId}/investment/edit`)
+    }
+
+    res.locals.investmentSummary = investmentSummary
+    res.locals.investmentDisplay = investmentFormattingService.getInvestmentDetailsDisplay(investmentSummary)
+    return metadataRepository.getAdvisors(req.session.token)
+  })
+  .then((advisors) => {
+    res.locals.advisors = advisors
+    companyRepository.getCompanyInvestmentProjects(req.session.token, req.params.sourceId)
+  })
+  .then((investmentProjects) => {
+    if (investmentProjects) {
+      res.locals.investmentProjects = investmentProjects
+      res.locals.investmentProjectsOpen = investmentFormattingService.getOpenInvestmentProjects(investmentProjects)
+      res.locals.investmentProjectsClosed = investmentFormattingService.getClosedInvestmentProjects(investmentProjects)
+    }
+
+    res.render('company/investment', {
+      tab: 'investment',
+      investmentProjectsOpenLabels,
+      investmentProjectsClosedLabels,
+      investmentDetailLabels,
+      investmentTierOptions,
+      investmentProjectsOpenKeys: Object.keys(investmentProjectsOpenLabels),
+      investmentProjectsClosedKeys: Object.keys(investmentProjectsClosedLabels)
     })
-    .catch((error) => {
-      winston.log('error', error)
-      if (typeof error.error === 'string') {
-        return res.status(error.response.statusCode).json({ errors: { detail: error.response.statusMessage } })
-      }
-      const errors = error.error
-      cleanErrors(errors)
-      return res.status(error.response.statusCode).json({ errors })
+  })
+  .catch((error) => {
+    if (error.statusCode && error.statusCode === 404) {
+      return res.redirect(`/company/company_company/${req.params.sourceId}/investment/edit`)
+    }
+    next(error)
+  })
+}
+
+function editInvestment (req, res, next) {
+  metadataRepository.getAdvisors(req.session.token)
+    .then((advisors) => {
+      res.locals.advisors = advisors
+      return companyRepository.getCompanyInvestmentSummaryLite(req.session.token, req.params.sourceId)
+    })
+    .then((investmentSummary) => {
+      res.render('company/investmentform', {
+        tab: 'investment',
+        investmentTierOptions,
+        investmentFormLabels,
+        investmentSummary
+      })
     })
 }
 
-function unarchive (req, res) {
-  controllerUtils.genCSRF(req, res)
+function postInvestment (req, res) {
+  delete req.body._csrf_token
 
-  companyRepository.unarchiveCompany(req.session.token, req.body.id)
-    .then((company) => {
-      res.json(company)
-    })
-    .catch((error) => {
-      winston.error('error', error)
-      if (typeof error.error === 'string') {
-        return res.status(error.response.statusCode).json({ errors: { detail: error.response.statusMessage } })
-      }
-      const errors = error.error
-      cleanErrors(errors)
-      return res.status(error.response.statusCode).json({ errors })
-    })
+  const errors = validateInvestment(req.body)
+  if (errors) {
+    controllerUtils.genCSRF(req, res)
+    res.locals.errors = errors
+    return editInvestment(req, res)
+  }
+
+  companyRepository.saveCompanyInvestmentSummary(req.session.token, req.body)
+  .then((result) => {
+    res.redirect(`/company/company_company/${req.params.sourceId}/investment`)
+  })
+  .catch((error) => {
+    if (error.errors) {
+      cleanErrors(error.errors)
+      req.errors = error.errors
+    } else {
+      res.errors = error
+    }
+    return editInvestment(req, res)
+  })
 }
 
-router.get('/company/:source/:sourceId', index)
-router.get('/api/company/:source/:sourceId', get)
-router.post('/api/company', post)
-router.post('/api/company/archive', archive)
-router.post('/api/company/unarchive', unarchive)
+function validateInvestment (data) {
+  const errors = {}
+  if (isBlank(data.investment_tier)) {
+    errors.investment_tier = ['You must select an investment tier']
+  }
 
-module.exports = { router, getDisplayCompany, getDisplayCH, getHeadingAddress }
+  if (isBlank(data.ownership)) {
+    errors.ownership = ['You must select a country of ownership']
+  }
+  if (managedOptions.includes(data.investment_tier) && isBlank(data.investment_account_manager)) {
+    errors.investment_account_manager = ['You must provide an investment account manager']
+  }
+  if (data.ownership === 'foreign' && isBlank(data.ownership_country)) {
+    errors.ownership_country = ['You must provide the name of the country that this companys owner is registered in']
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return errors
+  }
+
+  return null
+}
+
+router.use('/company/:source/:sourceId/*', getCommon)
+router.get('/company/:source/:sourceId/details', getDetails)
+router.post('/company/:source/:sourceId/details', postDetails)
+router.get('/company/:source/:sourceId/contacts', getContacts)
+router.get('/company/:source/:sourceId/interactions', getInteractions)
+router.get('/company/:source/:sourceId/export', getExport)
+router.get('/company/:source/:sourceId/investment', getInvestment)
+router.get('/company/:source/:sourceId/investment/edit', editInvestment)
+router.post('/company/:source/:sourceId/investment/edit', postInvestment)
+
+module.exports = { router }
