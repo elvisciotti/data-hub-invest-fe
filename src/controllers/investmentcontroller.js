@@ -50,9 +50,10 @@ function index(req, res) {
 }
 
 function invsearch(req, res) {
-  search.nonuk({
+  search.search({
     token: req.session.token,
     term: req.params.term,
+    nonuk: true
   })
     .then((result) => {
       res.json(result)
