@@ -65,7 +65,7 @@ function invsearch(req, res) {
 router.get('/investment/', index)
 router.get('/investment/:sourceId', index)
 router.get('/api/investment/search/:term', invsearch)
-router.get('/investment/suggest/:term', invsuggest)
+//router.get('/investment/suggest/:term', invsuggest) @todo make invsuggest exist
 
 
 module.exports = { router }
