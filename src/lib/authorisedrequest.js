@@ -52,6 +52,5 @@ module.exports = (token, opts) => {
 
   winston.debug('Send authorised request: ', requestOptions);
   requestOptions.jsonReviver = jsonReviver;
-
   return request(requestOptions);
 };

@@ -10,24 +10,25 @@ const FACETS = {
   ]
 };
 
-function search({ token, term, limit = 10, page = 1, filters }) {
-  let body = { term, limit }
-  body.offset = (page * body.limit) - body.limit
-
-  if (filters) {
-    body = Object.assign(body, filters);
-  }
-
-  // Filters for company actually means filtering for 2 company types
-  // so we modify the criteria sent to the server.
-  if (body.doc_type && body.doc_type === 'company') {
-    body.doc_type = ['company_company', 'company_companieshousecompany']
-  } else if (body.doc_type && Array.isArray(body.doc_type) && includes(body.doc_type, 'company')) {
-    let newDocTypeArray = body.doc_type.filter(item => item !== 'company')
-    newDocTypeArray.push('company_company')
-    newDocTypeArray.push('company_companieshousecompany')
-    body.doc_type = newDocTypeArray
-  }
+function search({ token, term, page = 1 }) {
+  // let body = { term, limit }
+  // body.offset = (page * body.limit) - body.limit
+  //
+  // if (filters) {
+  //   body = Object.assign(body, filters);
+  // }
+  //
+  //
+  // // Filters for company actually means filtering for 2 company types
+  // // so we modify the criteria sent to the server.
+  // if (body.doc_type && body.doc_type === 'company') {
+  //   body.doc_type = ['company_company', 'company_companieshousecompany']
+  // } else if (body.doc_type && Array.isArray(body.doc_type) && includes(body.doc_type, 'company')) {
+  //   let newDocTypeArray = body.doc_type.filter(item => item !== 'company')
+  //   newDocTypeArray.push('company_company')
+  //   newDocTypeArray.push('company_companieshousecompany')
+  //   body.doc_type = newDocTypeArray
+  // }
 
   const options = {
     url: `${config.apiRoot}/search?term=${term}`,
@@ -41,6 +42,22 @@ function search({ token, term, limit = 10, page = 1, filters }) {
       return result
     })
 }
+
+function nonuk({ token, term, page = 1 }) {
+
+  const options = {
+    url: `${config.apiRoot}/nonuk?term=${term}`,
+    method: 'GET'
+  }
+
+  return authorisedRequest(token, options)
+    .then(result => {
+      result.term = term
+      result.page = page
+      return result
+    })
+}
+
 
 function suggestCompany (token, term, types) {
   if (!types) {
@@ -97,4 +114,4 @@ function populateFacets (result, filters) {
   result.facets = facets
 }
 
-module.exports = { search, suggestCompany }
+module.exports = { search, nonuk, suggestCompany }

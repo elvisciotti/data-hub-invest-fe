@@ -1,5 +1,7 @@
 {% extends "layouts/ukti.html" %}
 
+
+
 {% block main %}
 
 {% import "macros/trade.html" as trade %}
@@ -16,8 +18,136 @@ keyorder=investmentDetailsDisplayOrder,
 id="investment-details")
 }}
 
-{{ trade.textbox("foreign_co", "Source of foreign investment", value='', "Search for the company name") }}
+{{ trade.textbox("foreign_co", "Source of foreign investment", "Search for the company name", 'inv-search') }}
 
+<input class="searchbar__submit" type="submit" value="Search">
+
+
+<div id="inv-results" style="display:none"></div>
+
+<style>
+.inv-result {
+  padding: 14px 0;
+  border-top: 1px solid #CCC;
+}
+
+  #inv-results {
+    border-bottom: 1px solid #CCC;
+    clear: both;
+  }
+
+  .inv-hidden {
+    display: none;
+  }
+
+
+</style>
+<script type="application/javascript">
+
+  var countryids = {
+    "4ed85f99-7e27-4041-ae7f-0440d2b36958": "UK",
+    "6abbee91-7b85-49b8-a133-d59455dc2aad": "Russia",
+    "1cb43855-31f9-4cc6-a9a7-893ba5fb0328": "USA"
+  }
+
+
+  var searchfield =document.querySelector("#inv-search");
+  var resultsdiv = document.querySelector("#inv-results");
+
+
+  var companyTemplate = "<div class='inv-result'><a href='#'>[[name]]</a>" +
+    "<br>[[address]]</div>" +
+      "<div class='inv-hidden'>" +
+      "<table>"+
+        "<tr>" +
+          "<td>Company Type</td>" +
+          "<td>[[company_type]]</td>" +
+        "</tr>"+
+      "<tr>" +
+        "<td>Investment in the UK</td>" +
+        "<td>[[investment_projects]]</td>" +
+      "</tr>"+
+      "<tr>" +
+        "<td>Account tier</td>" +
+        "<td>[[account_tier]]</td>" +
+      "</tr>"+
+      "<tr>" +
+        "<td>Account Manager in the UK</td>" +
+        "<td>[[account_manager]]</td>" +
+      "</tr>"+
+    "</table>" +
+    "</div>";
+
+
+  function display_sub(ev) {
+
+      var nod = ev.target;
+
+      if (nod.className !== 'inv-result') {
+        nod = ev.target.parentNode;
+      }
+
+      var ctnr =nod.parentNode;
+
+      var hid = ctnr.querySelector('.inv-hidden')
+      hid.style.display = "block";
+      hid.addEventListener("click", function()
+        {
+          hid.style.display = "none";
+        }
+      , true )
+
+    console.log(ev.target.parentNode);
+  }
+
+
+  function ifdef(thing, replacer) {
+      var replacer = replacer || "";
+      return (!!thing) ? thing : replacer;
+  }
+
+
+  function updateSearchField(res) {
+
+      resultsdiv.style.display = "block";
+      resultsdiv.innerHTML = "";
+      resultsdiv.addEventListener("click", display_sub, false)
+
+      var companies = JSON.parse(res.response);
+
+      console.log(companies)
+      companies.hits.forEach(function(co){
+
+          var divtext = companyTemplate.replace("[[name]]", co._source.name)
+          divtext = divtext.replace("[[address]]", ifdef(co._source.registered_address_1) + " " + ifdef(co._source.registered_address_town) + " " + countryids[co._source.registered_address_country])
+          divtext = divtext.replace("[[company_type]]", ifdef(co._source.company_category, "Unknown"));
+          divtext = divtext.replace("[[investment_projects]]", "none");
+          divtext = divtext.replace("[[account_tier]]", "B - Top 300");
+          divtext = divtext.replace("[[account_manager]]", "Martin Godfrey, Retail Sector Team - HQ");
+        resultsdiv.innerHTML += divtext;
+      })
+  }
+
+function searchCos(term) {
+  var companyRequest = new XMLHttpRequest();
+  companyRequest.onreadystatechange = function() {
+    if (companyRequest.readyState === 4) {
+      updateSearchField(companyRequest); //Outputs a DOMString by default
+    }
+  }
+
+  companyRequest.open("GET", "/api/investment/search/" + term);
+  companyRequest.send();
+}
+
+searchfield.addEventListener("keyup", function() {
+    searchCos(searchfield.value)
+}, true);
+
+
+
+
+</script>
 
 
 {% endblock %}}

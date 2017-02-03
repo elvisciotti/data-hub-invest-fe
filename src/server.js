@@ -106,6 +106,9 @@ expressNunjucks(app, {
 
 // Static files
 app.use('/javascripts', express.static(`${__dirname}/../build/javascripts`))
+
+// @todo - move somewhere sensible
+app.use('/javascripts', express.static(`${__dirname}/public/client_js`))
 app.use('/css', express.static(`${__dirname}/../build/css`))
 app.use(express.static(`${__dirname}/../src/public`))
 
