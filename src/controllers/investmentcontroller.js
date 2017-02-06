@@ -61,12 +61,25 @@ function invsearch(req, res) {
     .catch(error => res.render('error', { error }))
 }
 
+function invsuggest(req, res) {
 
+  search.search({
+    token: req.session.token,
+    term: req.params.term,
+    nonuk: true
+  })
+    .then((results) => {
+
+    console.log(results.hits[0]._source)
+      res.render('investment/suggest_partial', {results})
+    })
+    .catch(error => res.render('error', { error }))
+}
 
 router.get('/investment/', index)
 router.get('/investment/:sourceId', index)
 router.get('/api/investment/search/:term', invsearch)
-//router.get('/investment/suggest/:term', invsuggest) @todo make invsuggest exist
+router.get('/investment/suggest/:term', invsuggest) // @todo make invsuggest exist
 
 
 module.exports = { router }

@@ -18,10 +18,14 @@ keyorder=investmentDetailsDisplayOrder,
 id="investment-details")
 }}
 
-{{ trade.textbox("foreign_co", "Source of foreign investment", "Search for the company name", 'inv-search') }}
 
-<input class="searchbar__submit" type="submit" value="Search">
-
+<form class="searchbar" action="/search" method="get" role="search">
+  <div class="searchbar__wrapper">
+    <label class="searchbar__label" for="inv-search">Source of foreign investment</label>
+    <input class="searchbar__input form-control" id="inv-search" type="search" name="term" value="" placeholder="Search for company name or contact">
+    <input class="searchbar__submit" type="submit" value="Search">
+  </div>
+</form>
 
 <div id="inv-results" style="display:none"></div>
 
@@ -136,7 +140,7 @@ function searchCos(term) {
     }
   }
 
-  companyRequest.open("GET", "/api/investment/search/" + term);
+  companyRequest.open("GET", "/investment/suggest/" + term);
   companyRequest.send();
 }
 
