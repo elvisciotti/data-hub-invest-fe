@@ -59,7 +59,7 @@ id="investment-details")
   var resultsdiv = document.querySelector("#inv-results");
 
 
-  var companyTemplate = "<div class='inv-result'><a href='#'>[[name]]</a>" +
+  var companyTemplate = "<a href='#'>[[name]]</a>" +
     "<br>[[address]]</div>" +
       "<div class='inv-hidden'>" +
       "<table>"+
@@ -79,29 +79,21 @@ id="investment-details")
         "<td>Account Manager in the UK</td>" +
         "<td>[[account_manager]]</td>" +
       "</tr>"+
-    "</table>" +
-    "</div>";
+    "</table>";
 
 
-  function display_sub(ev) {
+  function toggle_sub(ev) {
+    var hid = this.querySelector('.inv-hidden');
 
-      var nod = ev.target;
-
-      if (nod.className !== 'inv-result') {
-        nod = ev.target.parentNode;
-      }
-
-      var ctnr =nod.parentNode;
-
-      var hid = ctnr.querySelector('.inv-hidden')
+    if (!hid.data || hid.data == "hidden") {
       hid.style.display = "block";
-      hid.addEventListener("click", function()
-        {
-          hid.style.display = "none";
-        }
-      , true )
+      hid.data ="showing";
+    } else {
+      hid.style.display = "none";
+      hid.data ="hidden";
+    }
 
-    console.log(ev.target.parentNode);
+
   }
 
 
@@ -115,20 +107,22 @@ id="investment-details")
 
       resultsdiv.style.display = "block";
       resultsdiv.innerHTML = "";
-      resultsdiv.addEventListener("click", display_sub, false)
 
       var companies = JSON.parse(res.response);
 
       console.log(companies)
       companies.hits.forEach(function(co){
-
+          var d = document.createElement("div");
+          d.className = "inv-result";
           var divtext = companyTemplate.replace("[[name]]", co._source.name)
           divtext = divtext.replace("[[address]]", ifdef(co._source.registered_address_1) + " " + ifdef(co._source.registered_address_town) + " " + countryids[co._source.registered_address_country])
           divtext = divtext.replace("[[company_type]]", ifdef(co._source.company_category, "Unknown"));
           divtext = divtext.replace("[[investment_projects]]", "none");
           divtext = divtext.replace("[[account_tier]]", "B - Top 300");
           divtext = divtext.replace("[[account_manager]]", "Martin Godfrey, Retail Sector Team - HQ");
-        resultsdiv.innerHTML += divtext;
+          d.innerHTML = divtext;
+          d.addEventListener("click", toggle_sub, false);
+        resultsdiv.appendChild(d);
       })
   }
 
@@ -136,11 +130,11 @@ function searchCos(term) {
   var companyRequest = new XMLHttpRequest();
   companyRequest.onreadystatechange = function() {
     if (companyRequest.readyState === 4) {
-      updateSearchField(companyRequest); //Outputs a DOMString by default
+      updateSearchField(companyRequest);
     }
   }
 
-  companyRequest.open("GET", "/investment/suggest/" + term);
+  companyRequest.open("GET", "/api/investment/search/" + term);
   companyRequest.send();
 }
 
@@ -152,6 +146,8 @@ searchfield.addEventListener("keyup", function() {
 
 
 </script>
+
+  <p class="infostrip">If you can’t find the company you’re looking for, <a href="#">create a new company</a>. Unfortunately you will lose your progress.</p>
 
 
 {% endblock %}}
